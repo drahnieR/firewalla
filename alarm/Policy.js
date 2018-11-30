@@ -22,6 +22,7 @@ const extend = require('util')._extend
 const minimatch = require("minimatch")
 
 const POLICY_MIN_EXPIRE_TIME = 60 // if policy is going to expire in 60 seconds, don't bother to enforce it.
+const POLICY_MIN_EXPIRE_DIFF = 60 // if policy expiration time .
 
 function arraysEqual(a, b) {
   if (a === b) return true;
@@ -61,6 +62,37 @@ module.exports = class {
     }
   }
 
+  toNewFormat() {
+    if (this['i.type']) {
+      this.type = this['i.type'];
+      delete this['i.type'];
+    }
+    if (this['i.target']) {
+      this.target = this['i.target'];
+      delete this['i.target'];
+    }
+    if (this.activatedTime) {
+      this.timestamp = this.activatedTime;
+      delete this.activatedTime;
+    }
+  }
+
+  isContainedInPolicy(policy) {
+    if(!policy) {
+      return false
+    }
+
+    const typeEqual = (this['i.type'] || this['type']) == (policy['i.type'] || policy['type']);
+    const targetEqual = (this['i.target'] || this['target']) == (policy['i.target'] || policy['target']);
+    const cronTimeEqual = this.cronTime == that.cronTime;
+    const expiredWithin = !policy.expire
+      || this.expire && this.getExpireTimestamp() <= policy.getExpireTimestamp();
+    const scopeWithin = !this.scope && !policy.scope
+      || this.scope && policy.scope && this.scope.every(s => policy.scope.indexOf(s) >= 0);
+
+    return typeEqual && targetEqual && cronTimeEqual && expiredWithin && scopeWithin;
+  }
+
   isExpired() {
     const expire = this.expire || NaN
     const activatedTime = this.activatedTime || this.timestamp
@@ -73,14 +105,14 @@ module.exports = class {
     return parseFloat(activatedTime) + parseFloat(expire) < new Date() / 1000 + POLICY_MIN_EXPIRE_TIME
   }
 
-  getWhenExpired() {
+  getExpireTimestamp() {
     const expire = this.expire || NaN
     const activatedTime = this.activatedTime || this.timestamp
     return parseFloat(activatedTime) + parseFloat(expire)
   }
 
   getExpireDiffFromNow() {
-    return this.getWhenExpired() - new Date() / 1000
+    return this.getExpireTimestamp() - new Date() / 1000
   }
 
   isDisabled() {

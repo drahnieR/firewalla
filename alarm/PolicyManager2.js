@@ -508,7 +508,7 @@ class PolicyManager2 {
             reject(err)
           } else {
             if (policies) {
-              resolve(policies.filter((p) => policy.isEqualToPolicy(p)))
+              resolve(policies.filter((p) => policy.isContainedIn(p)))
             } else {
               resolve([])
             }

@@ -14,6 +14,8 @@
  */
 'use strict';
 
+require('./extension/trace/trace.js')
+require('./extension/clarify/clarify.js')
 // config.discovery.networkInterface
 
 process.title = "FireMain";

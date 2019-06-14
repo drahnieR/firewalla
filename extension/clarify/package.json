@@ -1,0 +1,66 @@
+{
+  "name": "clarify",
+  "description": "Remove nodecore related stack trace noise",
+  "version": "2.1.0",
+  "author": {
+    "name": "Andreas Madsen",
+    "email": "amwebdk@gmail.com"
+  },
+  "main": "./clarify.js",
+  "scripts": {
+    "test": "tap ./test.js && eslint ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/AndreasMadsen/clarify.git"
+  },
+  "keywords": [
+    "trace",
+    "stack",
+    "stack trace",
+    "nodecore",
+    "error"
+  ],
+  "dependencies": {
+    "stack-chain": "^2.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^2.13.0",
+    "tap": "^11.0.0"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=4.0"
+  },
+  "gitHead": "c93da35971f6db8248771526320e50e480f7f45c",
+  "bugs": {
+    "url": "https://github.com/AndreasMadsen/clarify/issues"
+  },
+  "homepage": "https://github.com/AndreasMadsen/clarify#readme",
+  "_id": "clarify@2.1.0",
+  "_npmVersion": "5.5.1",
+  "_nodeVersion": "10.0.0-pre",
+  "_npmUser": {
+    "name": "andreasmadsen",
+    "email": "amwebdk@gmail.com"
+  },
+  "dist": {
+    "integrity": "sha512-sWdsTozdtoFQbmncCXqCKeUzQbEZul/WJ8xYGVJgfIf4xMEM5q0La+Gjo2MFNOVL0FfTFteHqw6JX+9M71dAdQ==",
+    "shasum": "8dd48539e202e4e009d2c7fa7fe1b69cdf262527",
+    "tarball": "https://registry.npmjs.org/clarify/-/clarify-2.1.0.tgz"
+  },
+  "maintainers": [
+    {
+      "name": "andreasmadsen",
+      "email": "amwebdk@gmail.com"
+    }
+  ],
+  "_npmOperationalInternal": {
+    "host": "s3://npm-registry-packages",
+    "tmp": "tmp/clarify-2.1.0.tgz_1514396171560_0.19038714421913028"
+  },
+  "directories": {},
+  "_shasum": "8dd48539e202e4e009d2c7fa7fe1b69cdf262527",
+  "_resolved": "https://registry.npmjs.org/clarify/-/clarify-2.1.0.tgz",
+  "_from": "clarify@latest"
+}

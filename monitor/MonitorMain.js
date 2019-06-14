@@ -15,8 +15,8 @@
 'use strict';
 process.title = 'FireMon';
 require('events').EventEmitter.prototype._maxListeners = 100;
-require('./extension/trace/trace.js')
-require('./extension/clarify/clarify.js')
+require('../extension/trace/trace.js')
+require('../extension/clarify/clarify.js')
 
 let log = require("../net2/logger.js")(__filename, "info");
 

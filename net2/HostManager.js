@@ -1204,6 +1204,19 @@ class Host {
   }
 
   // policy:mac:xxxxx
+  setPolicyAsync(name, data) {
+    return new Promise((resolve, reject) => {
+      this.setPolicy(name, data, (err, result) => {
+        if(err) {
+          reject(err);
+          return;
+        }
+
+        resolve(result);
+      });
+    });
+  }
+
   setPolicy(name, data, callback) {
     callback = callback || function() {}
 
@@ -2559,7 +2572,7 @@ module.exports = class HostManager {
   setPolicy(name, data, callback) {
 
     let savePolicyWrapper = (name, data, callback) => {
-      this.savePolicy((err, data) => {
+      this.savePolicy((err) => {
         if (err == null) {
           let obj = {};
           obj[name] = data;

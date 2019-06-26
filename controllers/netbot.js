@@ -426,13 +426,11 @@ class netBot extends ControllerBot {
     }
 
     this.hostManager.loadPolicy((err, data) => {
-      var newValue = {};
+      let oldValue = {};
       if (data["vpn"]) {
-        newValue = JSON.parse(data["vpn"]);
+        oldValue = JSON.parse(data["vpn"]);
       }
-      Object.keys(value).forEach((k) => {
-        newValue[k] = value[k];
-      });
+      const newValue = Object.assign({}, oldValue, value);
       this.hostManager.setPolicy("vpn", newValue, (err, data) => {
         if (err == null) {
           if (callback != null)
@@ -1141,6 +1139,14 @@ class netBot extends ControllerBot {
                       });
                   }
               }
+          } else if (msg.control === 'cloud') {
+            log.error("Firewalla Cloud");
+            if(msg.command) {
+              const cloudManager = require('../extension/cloud/CloudManager.js');
+              cloudManager.run(msg.command, msg.info).catch((err) => {
+                log.error("Got error when handling cloud action, err:", err);
+              });
+            }
           }
       }
   }
@@ -1692,36 +1698,30 @@ class netBot extends ControllerBot {
             log.error("Failed to load system policy for VPN", err);
             this.txData(this.primarygid, "device", datamodel, "jsondata", "", null, callback);
           } else {
-            // this should set local port of VpnManager, which will be used in getOvpnFile
-            const vpnManager = new VpnManager('info'); // VpnManager is a singleton
-            vpnManager.configure(JSON.parse(data["vpn"]), false, (err) => {
-              if (err != null) {
-                log.error("Failed to configure VPN", err);
-                this.txData(this.primarygid, "device", datamodel, "jsondata", "", null, callback);
-              } else {
-                vpnManager.getOvpnFile("fishboneVPN1", null, regenerate, compAlg, (err, ovpnfile, password) => {
-                  if (err == null) {
-                    datamodel.code = 200;
-                    datamodel.data = {
-                      ovpnfile: ovpnfile,
-                      password: password,
-                      portmapped: this.hostManager.policy['vpnPortmapped']
-                    };
+            const vpnConfig = JSON.parse(data["vpn"] || "{}");
+            let externalPort = "1194";
+            if (vpnConfig && vpnConfig.externalPort)
+              externalPort = vpnConfig.externalPort;
+            VpnManager.getOvpnFile("fishboneVPN1", null, regenerate, compAlg, externalPort, (err, ovpnfile, password) => {
+              if (err == null) {
+                datamodel.code = 200;
+                datamodel.data = {
+                  ovpnfile: ovpnfile,
+                  password: password,
+                  portmapped: JSON.parse(data['vpnPortmapped'] || "false")
+                };
 
-                    (async () => {
-                      const doublenat = await rclient.getAsync("ext.doublenat");
-                      if(doublenat !== null) {
-                        datamodel.data.doublenat = doublenat;
-                      }
-                      this.txData(this.primarygid, "device", datamodel, "jsondata", "", null, callback);
-                    })();
-
-                  } else {
-                    this.txData(this.primarygid, "device", datamodel, "jsondata", "", null, callback);
+                (async () => {
+                  const doublenat = await rclient.getAsync("ext.doublenat");
+                  if (doublenat !== null) {
+                    datamodel.data.doublenat = doublenat;
                   }
-                });
+                  this.txData(this.primarygid, "device", datamodel, "jsondata", "", null, callback);
+                })();
+              } else {
+                this.txData(this.primarygid, "device", datamodel, "jsondata", "", null, callback);
               }
-            }); 
+            });
           }
         });
         break;

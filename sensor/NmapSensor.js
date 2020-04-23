@@ -32,6 +32,10 @@ let xml2jsonBinary = Firewalla.getFirewallaHome() + "/extension/xml2json/xml2jso
 const SysManager = require('../net2/SysManager.js')
 const sysManager = new SysManager('info')
 
+const rclient = require('../util/redis_manager.js').getRedisClient()
+
+const ip = require('ip');
+
 class NmapSensor extends Sensor {
   constructor() {
     super();
@@ -40,6 +44,11 @@ class NmapSensor extends Sensor {
 
     let p = require('../net2/MessageBus.js');
     this.publisher = new p('info','Scan:Done', 10);
+
+    // dirty fix, there's already a better solution on master
+    const gatewayIP = sysManager.myGateway()
+    const instance = this;
+    rclient.hgetAsync(`host:ip4:${gatewayIP}`, 'mac').then(mac => instance.gatewayMac = mac)
   }
 
   static _handleAddressEntry(address, host) {
@@ -240,7 +249,7 @@ class NmapSensor extends Sensor {
               this.publisher.publish("DiscoveryEvent", "Scan:Done", '0', {});
             }, 7 * 1000)
           }
-        })      
+        })
     });
   }
 
@@ -257,8 +266,15 @@ class NmapSensor extends Sensor {
         return
       }
     }
-    
+
     if(host && host.mac) {
+      if (host.mac == this.gatewayMac &&
+          host.ipv4Addr && sysManager.mySubnet2() &&
+          ip.cidrSubnet(sysManager.mySubnet2()).contains(host.ipv4Addr)
+      ) {
+        return
+      }
+
       const hostInfo = {
         ipv4: host.ipv4Addr,
         ipv4Addr: host.ipv4Addr,

@@ -357,6 +357,7 @@ class FireRouter {
           monitoringIntfNames = [];
       }
       monitoringIntfNames = safeCheckMonitoringInterfaces(monitoringIntfNames);
+      log.info(monitoringIntfNames)
 
       logicIntfNames = Object.values(intfNameMap)
         .filter(intf => intf.config.meta.type === 'wan' || intf.config.meta.type === 'lan')

@@ -123,6 +123,8 @@ async function refreshListeningInterfaces(app, local = false) {
     local || !userInterfaces ? sysManager.getMonitoringInterfaces() :
     userInterfaces.map(intf => sysManager.getInterfaceViaUUID(intf))
 
+  log.info('listeningInterfaces', listeningInterfaces)
+
   // always listen to localhost
   const targetIP4Set = new Set(
     listeningInterfaces
@@ -131,7 +133,7 @@ async function refreshListeningInterfaces(app, local = false) {
       .concat('127.0.0.1')
   )
 
-  log.debug(targetIP4Set)
+  log.info(targetIP4Set)
 
   const port = local ? PORT_LOCAL_API : PORT
   for (const ip in apiServers[port]) {

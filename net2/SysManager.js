@@ -458,7 +458,7 @@ class SysManager {
       log.error('Error getting sys:network:uuid', err)
     }
 
-    log.info('update complete')
+    log.info('update complete', JSON.stringify(this.sysinfo, null, 2))
   }
 
   async syncVersionUpdate() {

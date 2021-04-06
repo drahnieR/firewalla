@@ -1,4 +1,4 @@
-/*    Copyright 2016 Firewalla LLC
+/*    Copyright 2016-2021 Firewalla Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -17,7 +17,6 @@
 var instance = null;
 const log = require("../../net2/logger.js")(__filename);
 
-const sysManager = require('../../net2/SysManager.js');
 const UPNP = require('../../extension/upnp/upnp');
 const upnp = new UPNP();
 const firewalla = require('../../net2/Firewalla.js');
@@ -25,19 +24,13 @@ const firewalla = require('../../net2/Firewalla.js');
 const key = require('../common/key.js');
 const fHome = firewalla.getFirewallaHome();
 
-const later = require('later');
-const publicIp = require('public-ip');
 
 const fs = require('fs');
-const network = require('network');
-const ip = require('ip');
 
 const util = require('util');
 
 const jsonfile = require('jsonfile');
 const configFileLocation = fHome + '/etc/shadowsocks.config.json';
-
-const ttlExpire = 60*60*12;
 
 const externalPort = 8388;
 const localPort = 8388;
@@ -48,7 +41,7 @@ const ssLogFile = firewalla.getLogFolder() + "/fw_ss_server.log";
 const cp = require('child_process')
 
 module.exports = class {
-    constructor(loglevel) {
+    constructor() {
         if (instance == null) {
             instance = this;
         }

@@ -18,7 +18,6 @@
 const log = require('../net2/logger.js')(__filename);
 const Sensor = require('./Sensor.js').Sensor;
 const exec = require('child-process-promise').exec;
-const { date } = require('later');
 const extensionManager = require('./ExtensionManager.js')
 const sysManager = require('../net2/SysManager.js');
 
@@ -33,7 +32,6 @@ const COLLECTOR_DIR = f.getFirewallaHome()+"/scripts/event_collectors";
 const FEATURE_EVENT = "event_collect";
 const era = require('../event/EventRequestApi.js');
 const ea = require('../event/EventApi.js');
-const um = require('../net2/UpgradeManager.js');
 
 class EventSensor extends Sensor {
 

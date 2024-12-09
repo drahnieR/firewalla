@@ -150,7 +150,10 @@ module.exports = class FlowMonitor {
     let extra = {}
     if (fc.isFeatureOn("insane_mode")) {
       log.warn('INSANE MODE ON')
-      extra = { txInMin: 1000, txOutMin: 1000, sdMin: 1, ratioMin: 1, ratioSingleDestMin: 1, rankedMax: 5 }
+      extra = {
+        txMinIn: 1000, txMinOut: 1000, sdMin: 10, ratioMin: 1, rankedMax: 5,
+        countMaxStrict: 10, txMinOutStrict: 2000, ratioMinStrict: 1, cooldown: 14400
+      }
     }
 
     // every field defined in default profile should be accessible
@@ -510,6 +513,7 @@ module.exports = class FlowMonitor {
       let flow = rankedFlows[i];
       log.debug(flow)
       flow.rank = i;
+      this.dlpDetected ++
 
       try {
         await this.genLargeTransferAlarm(flow, profile, 'large_upload');
@@ -585,6 +589,7 @@ module.exports = class FlowMonitor {
 
       await this.loadSystemProlicies()
 
+      this.dlpDetected = 0
       for (const host of allMonitorables) try {
         const mac = host.getGUID();
 
@@ -613,6 +618,7 @@ module.exports = class FlowMonitor {
       } catch(err) {
         log.error(`Error running ${service} for ${host.getGUID()}`, err)
       }
+      log.verbose('DLP detected', this.dlpDetected)
     } catch (e) {
       log.error('Error in run', service, period, runid, e);
     } finally {
@@ -701,6 +707,12 @@ module.exports = class FlowMonitor {
       "p.flow": JSON.stringify(flow),
       "p.flow.sigs": flow.sigs,
       "p.intf.id": npm.prefixMap[flow.intf] || flow.intf,
+      'e.txStdev': flow.txStdev,
+      'e.txMean': flow.txMean,
+      'e.txStdScore': flow.txStdScore,
+      'e.ratioStdev': flow.ratioStdev,
+      'e.ratioMean': flow.ratioMean,
+      'e.ratioStdScore': flow.ratioStdScore,
     });
 
     for (const type of Object.keys(Constants.TAG_TYPE_MAP)) {

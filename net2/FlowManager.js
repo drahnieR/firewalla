@@ -184,20 +184,19 @@ module.exports = class FlowManager {
       }
     }
 
-    if (flows.length <= 1) {
-      // Need to take care of this condition
-      if (flows.length == 1
-        && flows[0].tx > (inbound ? profile.txInMin : profile.txOutMin)
-        && flows[0].ratio > profile.ratioSingleDestMin
-      ) {
-        log.debug("FlowManager:FlowSummary single destination", flows[0]);
-        flowspec.ratioRanked.push(flows[0]);
-      }
+    // if flow count is small, standard score can't go very high
+    // use a simple check here
+    if (flows.length <= profile.countMaxStrict) {
+      flowspec.txRanked = flows.filter(f => f.tx > (inbound ? profile.txMinIn : profile.txMinOutStrict)
+          && f.ratio > profile.ratioMinStrict)
+        .sort((a, b) => b.tx - a.tx)
+        .slice(0, 1)
+
+      log.debug("FlowManager:FlowSummary few destinations", flowspec.txRanked);
       return flowspec;
     }
 
     // download bytes alone is ignored here
-    // save top 5 results to 'Ranked' array
     [/* 'rx', */ 'tx', 'ratio'].forEach(category => {
       const cStdev = `${category}Stdev`;
       const cMean = `${category}Mean`;
@@ -211,31 +210,32 @@ module.exports = class FlowManager {
 
       flowspec[cMean] = stats.mean(values[category])
 
+      // standard score, dataset size have a big impact on final results
+      // we might want to shift to something like Median Absolute Deviation (MAD) based standard score
       for (let flow of flows) {
-        // flow[cStdScore] = flow[category] / flowspec[cStdScore];
         flow[cStdScore] = (flow[category] - flowspec[cMean]) / flowspec[cStdev]
       }
 
       flows.sort(function (a, b) {
         return Number(b[cStdScore]) - Number(a[cStdScore]);
       })
-      log.debug(category, flows.map(f=>f[cStdScore]));
+      log.debug(category, flows.map(f=>f[cStdScore]).sort((a,b)=>b-a).slice(0, 10));
 
       // negative scores (values < standard deviation) are ignored here
       flowspec[cRanked] = flows
         .filter(f => f[cStdScore] > profile.sdMin
-          && f.ratio > (category == 'tx' ? profile.ratioTxMin : profile.ratioMin)
-          && f.tx > (inbound ? profile.txInMin : profile.txOutMin)
+          && f.ratio > profile.ratioMin
+          && f.tx > (inbound ? profile.txMinIn : profile.txMinOut)
         )
         .slice(0, profile.rankedMax)
-
-      flowspec[cRanked].length && log.debug(category, flowspec[cRanked]);
 
       // for debug
       flowspec[cRanked].forEach(f => {
         f[cStdev] = flowspec[cStdev]
         f[cMean] = flowspec[cMean]
       })
+
+      flowspec[cRanked].length && log.debug(category, flowspec[cRanked]);
     })
 
     return flowspec;

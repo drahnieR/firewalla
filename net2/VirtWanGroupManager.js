@@ -1,4 +1,4 @@
-/*    Copyright 2019-2023 Firewalla Inc.
+/*    Copyright 2019-2024 Firewalla Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -127,7 +127,7 @@ class VirtWanGroupManager {
   async refreshVirtWanGroups() {
     await lock.acquire(LOCK_REFRESH_WAN_GROUPS, async () => {
       const markMap = {};
-      const keys = await rclient.keysAsync("virt_wan_group:*");
+      const keys = await rclient.scanResults("virt_wan_group:*");
       for (const key of keys) {
         const data = await rclient.hgetallAsync(key);
         if (!data)

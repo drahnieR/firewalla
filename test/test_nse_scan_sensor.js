@@ -48,7 +48,7 @@ describe('Test NseScanPlugin', function() {
     fireRouter.scheduleReload();
     await new Promise(resolve => setTimeout(resolve, 2000));
     await sysManager.updateAsync();
-    const keys = await rclient.keysAsync("network:uuid:*");
+    const keys = await rclient.scanResults("network:uuid:*");
     for (let key of keys) {
       const profile = await rclient.hgetallAsync(key);
       if (!profile) // just in case
@@ -62,7 +62,7 @@ describe('Test NseScanPlugin', function() {
       npm.networkProfiles[uuid] = new NetworkProfile(o)
     }
 
-    const hostkeys = await rclient.keysAsync("host:mac:*");
+    const hostkeys = await rclient.scanResults("host:mac:*");
     const currentTs = Date.now() / 1000;
     for (let key of hostkeys) {
       const hostinfo = await rclient.hgetallAsync(key);

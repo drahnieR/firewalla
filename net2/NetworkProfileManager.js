@@ -1,4 +1,4 @@
-/*    Copyright 2019-2023 Firewalla Inc.
+/*    Copyright 2019-2024 Firewalla Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -174,7 +174,7 @@ class NetworkProfileManager {
     if (f.isMain() && readOnly) // only return cached networkProfiles to avoid race condition on updating this.networkProfiles
       return this.networkProfiles;
     const markMap = {};
-    const keys = await rclient.keysAsync("network:uuid:*");
+    const keys = await rclient.scanResults("network:uuid:*");
     for (let key of keys) {
       const redisProfile = await rclient.hgetallAsync(key);
       if (!redisProfile) // just in case

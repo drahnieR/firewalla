@@ -1,4 +1,4 @@
-/*    Copyright 2018-2019 Firewalla INC
+/*    Copyright 2018-2024 Firewalla Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -96,7 +96,7 @@ let vips = null;
 
 router.get('/json/vip_stats.json', async (req, res, next) => {
     if (!vips) {
-        vips = await rclient.keysAsync('perf:ping:*').map(key => key.replace('perf:ping:', ''));
+        vips = await rclient.scanResults('perf:ping:*').map(key => key.replace('perf:ping:', ''));
     }
 
     const result = {};

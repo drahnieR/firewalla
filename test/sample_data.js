@@ -1,4 +1,4 @@
-/*    Copyright 2016 Firewalla LLC
+/*    Copyright 2016-2024 Firewalla Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -306,7 +306,7 @@ exports.removeSampleAggrFlows = () => {
 
 exports.removeAllSampleAggrFlows = () => {
   return (async() =>{
-    let keys = await rclient.keysAsync("aggrflow:F4:0F:24:00:00:01:*");
+    let keys = await rclient.scanResults("aggrflow:F4:0F:24:00:00:01:*");
     await Promise.all(keys.map(async (key) => {
       await rclient.delAsync(key);
     }));

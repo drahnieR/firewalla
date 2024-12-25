@@ -380,7 +380,7 @@ class NseScanPlugin extends Sensor {
     }
 
     // clean
-    const keys = await rclient.keysAsync(`${policyKeyName}:mac:*`);
+    const keys = await rclient.scanResults(`${policyKeyName}:mac:*`);
     const deadline = Date.now() / 1000 - 2592000; // 30 days
     for (const key of keys) {
       const data = await rclient.hgetAsync(key, fieldKey);
@@ -405,7 +405,7 @@ class NseScanPlugin extends Sensor {
 
   async saveNseSuspects(fieldKey, suspects) {
     const prevKeys = {};
-    const keys = await rclient.keysAsync(`${policyKeyName}:suspect:*`);
+    const keys = await rclient.scanResults(`${policyKeyName}:suspect:*`);
     keys.forEach( (i) => { prevKeys[i] = 0 });
 
     if (suspects && suspects.alarm ) {

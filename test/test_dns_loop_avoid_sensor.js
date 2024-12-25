@@ -33,7 +33,7 @@ describe('Test dns loop sensor', function(){
   this.timeout(30000);
 
   before(async() => {
-      const hostkeys = await rclient.keysAsync("host:mac:*");
+      const hostkeys = await rclient.scanResults("host:mac:*");
       for (let key of hostkeys) {
           const hostinfo = await rclient.hgetallAsync(key);
           const host = new Host(hostinfo, true);

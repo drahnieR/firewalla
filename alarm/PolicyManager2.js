@@ -2982,7 +2982,7 @@ class PolicyManager2 {
   }
 
   async getAllRuleGroupMetaData() {
-    const keys = await rclient.keysAsync("rule_group:*");
+    const keys = await rclient.scanResults("rule_group:*");
     const objs = [];
     for (const key of keys) {
       const obj = await rclient.hgetallAsync(key);

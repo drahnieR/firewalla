@@ -88,7 +88,6 @@ const pm2 = new PM2();
 const SSH = require('../extension/ssh/ssh.js');
 const ssh = new SSH();
 
-const builder = require('botbuilder');
 const uuid = require('uuid');
 
 const NM = require('../ui/NotifyManager.js');
@@ -229,10 +228,6 @@ class netBot extends ControllerBot {
 
   constructor(config, fullConfig, eptcloud, groups, gid, debug, offlineMode) {
     super(config, fullConfig, eptcloud, groups, gid, debug, offlineMode);
-    this.bot = new builder.TextBot();
-    //      this.dialog = new builder.LuisDialog(config.dialog.api);
-    this.dialog = new builder.CommandDialog();
-    this.bot.add('/', this.dialog);
     this.compress = true;
 
     this.eptCloudExtension = new EptCloudExtension(eptcloud, gid);
@@ -502,8 +497,6 @@ class netBot extends ControllerBot {
           }
         }
       }
-
-      this.setupDialog();
     }, 20 * 1000);
 
     sclient.on("message", (channel, msg) => {
@@ -3980,16 +3973,9 @@ class netBot extends ControllerBot {
         return this.simpleTxData(msg, {}, err, cloudOptions);
       }
     } else {
-      const msg = await util.promisify(this.bot.processMessage).bind(this.bot)({
-        text: rawmsg.message.msg,
-        from: {
-          address: rawmsg.message.from,
-          channelId: gid
-        }
-      }).catch(()=>{})
-      if (msg && msg.text) {
-        return this.tx(gid, msg.text, "message");
-      }
+      log.error('Invalid message')
+      const err = { code: 400, msg: "Invalid Request" }
+      return this.simpleTxData(msg, {}, err, cloudOptions);
     }
 
   }
@@ -4040,18 +4026,6 @@ class netBot extends ControllerBot {
 
   helpString() {
     return "Bot version " + sysManager.version() + "\n\nCli interface is no longer useful, please type 'system reset' after update to new encipher app on iOS\n";
-  }
-
-  setupDialog() {
-    this.dialog.matches('^system reset', (session) => {
-      this.tx(this.primarygid, "performing reset of everything", "system resetting");
-      let task = exec('/home/pi/firewalla/scripts/system-reset-all', (err, out, code) => {
-        this.tx(this.primarygid, "Done, will reboot now and the system will reincarnated, this group is no longer useful, you can delete it.", "system resetting");
-        exec('sync & /home/pi/firewalla/scripts/fire-reboot-normal', (err, out, code) => {
-        });
-      });
-
-    });
   }
 
   scheduleRestartFirerouterUPnP(intfName) {

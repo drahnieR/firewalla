@@ -242,11 +242,18 @@ class Conntrack {
     return `${connDesc.src || "*"}::${connDesc.sport || "*"}::${connDesc.dst || "*"}::${connDesc.dport || "*"}::${connDesc.protocol || "*"}`
   }
 
-  registerConnHook(connDesc, func) {
+  registerConnHook(connDesc, funcNew, funcDestroy) {
     const key = this.getConnStr(connDesc);
     if (!this.connHooks[key]) {
-      this.spawnProcess(connDesc.protocol || "tcp", "NEW,DESTROY", connDesc.src, connDesc.dst, connDesc.sport, connDesc.dport,
+      const eventsMask = funcDestroy ? "NEW,DESTROY" : "NEW";
+      this.spawnProcess(connDesc.protocol || "tcp", eventsMask, connDesc.src, connDesc.dst, connDesc.sport, connDesc.dport,
         (connInfo) => {
+          const func = this.connHooks[key][0]
+          // func can be updated over the run
+          if (typeof func === 'function')
+            func(connInfo);
+
+          if (!this.connHooks[key][1]) return
           this.connCache[this.getConnStr(connInfo)] = { begin: Date.now() / 1000 };
         },
         (connInfo) => {
@@ -264,7 +271,7 @@ class Conntrack {
                   connInfo.duration -= 10; // nf_conntrack_tcp_timeout_close
                 break;
             }
-            const func = this.connHooks[key];
+            const func = this.connHooks[key][1]
             // func can be updated over the run
             if (typeof func === 'function')
               func(connInfo);
@@ -273,7 +280,7 @@ class Conntrack {
         }
       );
     }
-    this.connHooks[key] = func;
+    this.connHooks[key] = [ funcNew, funcDestroy ];
   }
 
   getKey(src, sport, dst, dport, protocol) {

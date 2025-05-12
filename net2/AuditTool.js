@@ -129,6 +129,13 @@ class AuditTool extends LogQuery {
       f.wanIntf = networkProfileManager.prefixMap[entry.wanIntf] || entry.wanIntf
     }
 
+    if (options.dns) {
+      if (entry.oIntf) {
+        f.oIntf = networkProfileManager.prefixMap[entry.oIntf] || entry.oIntf
+        f.intercept = false
+      } else
+        f.intercept = true
+    }
 
     if (options.dns || entry.type == 'dns') {
       f.domain = entry.dn

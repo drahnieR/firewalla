@@ -46,9 +46,9 @@ class PcapZeekPlugin extends PcapPlugin {
 
     const localNetworks = this.calculateLocalNetworks();
     await broControl.writeNetworksConfig(localNetworks);
-    await broControl.restart().then(() => broControl.addCronJobs()).then(() => {
-      log.info("Zeek restarted");
-    });
+    await broControl.restart()
+    await broControl.addCronJobs()
+    log.info("Zeek restarted");
   }
 
   async stop() {
@@ -197,7 +197,7 @@ class PcapZeekPlugin extends PcapPlugin {
     }
     if (fc.isFeatureOn("fast_speedtest") && conntrack) {
       restrictFilters["not-tcp-port-8080"] = `not (tcp and port 8080)`;
-      conntrack.registerConnHook({dport: 8080, protocol: "tcp"}, (connInfo) => {
+      conntrack.registerConnHook({dport: 8080, protocol: "tcp"}, null, (connInfo) => {
         const {src, replysrc, sport, replysport, dst, dport, protocol, origPackets, respPackets, origBytes, respBytes, duration} = connInfo;
         const local_orig = Boolean(sysManager.getInterfaceViaIP(src));
         bro.processConnData(JSON.stringify(

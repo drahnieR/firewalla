@@ -658,7 +658,7 @@ cat << EOF
 -N FW_RT_FILTER
 
 # only for outbound traffic marking
--A FW_PREROUTING -m set --match-set c_lan_set src,src -m conntrack --ctdir ORIGINAL -j FW_RT_FILTER
+-A FW_PREROUTING -m set --match-set c_lan_set src,src -m set ! --match-set c_lan_set dst,dst -m conntrack --ctdir ORIGINAL -j FW_RT_FILTER
 
 # filter out multicast, broadcast and non-DNS local packet,
 -A FW_RT_FILTER -m pkttype --pkt-type broadcast -j RETURN

@@ -74,6 +74,7 @@ const APP_MAP_SIZE = 1000;
 const SIG_MAP_SIZE = 1000;
 const PROXY_CONN_SIZE = 100;
 const DNS_CACHE_SIZE = 100;
+const DNS_OINTF_SIZE = 1000;
 
 const httpFlow = require('../extension/flow/HttpFlow.js');
 const NetworkProfileManager = require('./NetworkProfileManager.js')
@@ -144,6 +145,29 @@ class BroDetect {
       this[watcher].on('line', func.bind(this));
       this[watcher].watch();
     }
+
+    if (fc.isFeatureOn('dns_flow')) {
+      conntrack.registerConnHook({dport: 53, protocol: "udp", event: 'new'}, connInfo => {
+        const {src, replysrc, sport, dst, replydst} = connInfo;
+        const fam = net.isIP(src);
+        // requests that dnsmasq is not intercepting
+        if (fam && (fam == 4
+          ? !sysManager.isMyIP(src, false) && sysManager.isMyIP(replydst, false)
+          : !sysManager.isMyIP6(src, false) && sysManager.isMyIP6(replydst, false)
+        )) {
+          const oIntf = sysManager.getInterfaces(false).find(i => i.ip_address == replydst);
+          // most results should be the same, save some space by cutting the source port
+          const cached = this.dnsOIntfMap.peek(`${src}:${dst}`)
+          if (!cached) {
+            log.verbose('Dns:ConnHook', src, dst, oIntf.name)
+            this.dnsOIntfMap.set(`${src}:${dst}`, oIntf);
+          } else if (cached != oIntf) {
+            log.verbose('Dns:ConnHook', src, sport, dst, oIntf.name)
+            this.dnsOIntfMap.set(`${src}:${sport}:${dst}`, oIntf);
+          }
+        }
+      })
+    }
   }
 
   constructor() {
@@ -154,6 +178,7 @@ class BroDetect {
     this.sigmap = new LRU({max: SIG_MAP_SIZE, maxAge: 10800 * 1000});
     this.proxyConn = new LRU({max: PROXY_CONN_SIZE, maxAge: 60 * 1000});
     this.dnsCache = new LRU({max: DNS_CACHE_SIZE, maxAge: 3600 * 1000});
+    this.dnsOIntfMap = new LRU({max: DNS_OINTF_SIZE, maxAge: 600 * 1000});
     this.dnsCount = 0
     this.dnsHit = 0
     this.dnsMatch = 0
@@ -513,7 +538,13 @@ class BroDetect {
         this.recordDeviceHeartbeat(localMac, dnsFlow.ts, dnsFlow.sh, localFam)
       }
 
-      if (!this.isMonitoring(intfInfo, monitorable) || !this.isDNSCacheOn(intfInfo, monitorable)) {
+      const oIntf = this.dnsOIntfMap.get(`${dnsFlow.sh}:${obj['id.orig_p']}:${dnsFlow.dh}`) ||
+        this.dnsOIntfMap.get(`${dnsFlow.sh}:${dnsFlow.dh}`)
+      if (oIntf) {
+        dnsFlow.oIntf = oIntf.uuid.substring(0, 8)
+      }
+
+      if (!this.isMonitoring(intfInfo, monitorable)) {
         return;
       }
 
@@ -1084,7 +1115,6 @@ class BroDetect {
         // recored device heartbeat
         // as flows with invalid conn_state are removed, all flows here could be considered as valid
         // this should be done before device monitoring check, we still want heartbeat update from unmonitored devices
-        log.info("Conn:Heartbeat", flowdir, localMac, lhost, obj.orig_pkts, obj.resp_pkts)
         if (obj.proto == 'tcp' || flowdir == 'in' && obj.orig_pkts || flowdir == 'out' && obj.resp_pkts)
           this.recordDeviceHeartbeat(localMac, Math.round((obj.ts + obj.duration) * 100) / 100, lhost, fam)
       }

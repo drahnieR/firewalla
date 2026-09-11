@@ -1,5 +1,9 @@
 #! /usr/bin/env bash
 
+# Without this the setup fails silently: a permission error from one of the mkdirs
+# below left the test environment half-built, and the suite only failed much later
+# with an unexplained ENOENT.
+set -e
 
 pwd
 echo $NODE_PATH
@@ -28,12 +32,22 @@ BOARD_VENDOR=Firewalla
 ARCH=x86_64"
 EOF'
 
-HOME='/home/pi'
-mkdir -p ${HOME}/.firewalla/run/device-detector-regexes
-mkdir -p ${HOME}/.firewalla/config/dnsmasq
-mkdir -p ${HOME}/.forever
-mkdir -p ${HOME}/ovpns
-mkdir -p ${HOME}/logs
+# These all resolve through net2/Firewalla.js getUserHome(), i.e. process.env.HOME,
+# which is the runner's own home. Assigning HOME here would only rebind it inside this
+# script - the test step runs in a fresh shell - so the directories have to be created
+# where the tests will actually look for them.
+mkdir -p "${HOME}/.firewalla/run/device-detector-regexes"
+mkdir -p "${HOME}/.firewalla/config/dnsmasq"
+mkdir -p "${HOME}/.forever"
+mkdir -p "${HOME}/ovpns"
+mkdir -p "${HOME}/logs"
 mkdir -p ./coverage
-echo "{}" > ${HOME}/.firewalla/license
+echo "{}" > "${HOME}/.firewalla/license"
+
+# net2/logger.js getTestTransport hardcodes /home/pi/.forever rather than going through
+# getUserHome, and it is instantiated whenever NODE_ENV=test. /home/pi is created above
+# with sudo, so it is root-owned and needs handing to the runner user to be writable.
+sudo mkdir -p /home/pi/.forever
+sudo chown -R "$(id -un)" /home/pi/.forever
+
 sudo apt-get install -y redis ipset

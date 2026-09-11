@@ -23,6 +23,11 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
+    env:
+      # How far line coverage may fall below the latest master baseline, in
+      # percentage points, before the build is failed.
+      COVERAGE_TOLERANCE: "0.5"
+
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -61,12 +66,98 @@ jobs:
       - run: $(yarn global bin)/webpack-cli -c .webpack/config_api.js
       - run: $(yarn global bin)/webpack-cli -c .webpack/config_mon.js
       - run: bash .webpack/prep-env.sh
-      - run: npm run coverage | tee coverage/summary.txt
+
+      # Not piped into tee: a pipeline reports the exit status of its LAST command,
+      # so `npm run coverage | tee ...` used to swallow both mocha failures and nyc's
+      # own threshold failure, and coverage was then computed from a half-run suite.
+      # The full output is in this step's log either way.
+      - run: npm run coverage
+
       - name: Archive code coverage results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage-report
           path: ./coverage/
-      - run: echo "TEST_COVERAGE=$(grep Lines coverage/summary.txt | awk -F " " '{print $3}')" >> $GITHUB_ENV
-      - run: echo coverage $TEST_COVERAGE
-      - run: bash .webpack/post-check.sh $TEST_COVERAGE 10
+
+      # Baseline is whatever the most recent push to master published. The exact key
+      # never hits on a PR (it carries the PR's sha), so the prefix restore-key is what
+      # resolves, and it returns the most recently created matching entry.
+      - name: Restore coverage baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: .coverage-baseline
+          key: coverage-baseline-master-${{ github.sha }}
+          restore-keys: |
+            coverage-baseline-master-
+
+      # Read from coverage-summary.json (json-summary reporter, already enabled in
+      # .nycrc.json) rather than grepping the text summary: the old grep ran over the
+      # whole teed run output, so any test title containing "Lines" won the match.
+      - name: Read coverage numbers
+        id: cov
+        run: |
+          pct=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+          for m in statements branches functions; do
+            echo "$m=$(jq -r ".total.${m}.pct" coverage/coverage-summary.json)" >> "$GITHUB_OUTPUT"
+          done
+          baseline=""
+          if [ -f .coverage-baseline/pct.txt ]; then
+            baseline=$(cat .coverage-baseline/pct.txt)
+          fi
+          echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+          if [ -n "$baseline" ]; then
+            # bc renders values between -1 and 1 without a leading zero ("-.3").
+            echo "delta=$(printf '%+.2f' "$(echo "$pct - $baseline" | bc -l)")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Coverage summary
+        env:
+          PCT: ${{ steps.cov.outputs.pct }}
+          STATEMENTS: ${{ steps.cov.outputs.statements }}
+          BRANCHES: ${{ steps.cov.outputs.branches }}
+          FUNCTIONS: ${{ steps.cov.outputs.functions }}
+          BASELINE: ${{ steps.cov.outputs.baseline }}
+          DELTA: ${{ steps.cov.outputs.delta }}
+        run: |
+          {
+            echo "## Test coverage"
+            echo
+            echo "| Metric | Coverage |"
+            echo "| --- | --- |"
+            echo "| **Lines** | **${PCT}%** |"
+            echo "| Statements | ${STATEMENTS}% |"
+            echo "| Branches | ${BRANCHES}% |"
+            echo "| Functions | ${FUNCTIONS}% |"
+            echo
+            if [ -n "$BASELINE" ]; then
+              echo "Baseline (latest master): **${BASELINE}%** — change: **${DELTA}** points"
+              echo
+              echo "Allowed drop: ${COVERAGE_TOLERANCE} points."
+            else
+              echo "No baseline was available for comparison, so the drop check was skipped."
+              echo "The next push to master publishes one."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check coverage against baseline
+        env:
+          PCT: ${{ steps.cov.outputs.pct }}
+          BASELINE: ${{ steps.cov.outputs.baseline }}
+        run: bash .webpack/post-check.sh "$PCT" "$BASELINE" "$COVERAGE_TOLERANCE"
+
+      - name: Stage new baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          PCT: ${{ steps.cov.outputs.pct }}
+        run: |
+          mkdir -p .coverage-baseline
+          echo "$PCT" > .coverage-baseline/pct.txt
+
+      - name: Publish coverage baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: .coverage-baseline
+          key: coverage-baseline-master-${{ github.sha }}

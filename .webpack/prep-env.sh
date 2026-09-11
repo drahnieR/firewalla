@@ -44,10 +44,18 @@ mkdir -p "${HOME}/logs"
 mkdir -p ./coverage
 echo "{}" > "${HOME}/.firewalla/license"
 
-# net2/logger.js getTestTransport hardcodes /home/pi/.forever rather than going through
-# getUserHome, and it is instantiated whenever NODE_ENV=test. /home/pi is created above
-# with sudo, so it is root-owned and needs handing to the runner user to be writable.
-sudo mkdir -p /home/pi/.forever
-sudo chown -R "$(id -un)" /home/pi/.forever
+# Not every log path goes through getUserHome - these are hardcoded under /home/pi, and
+# winston's file transport opens its file at module load without creating the directory,
+# so a missing one throws while test files are still being loaded. A throw at that point
+# lands in the root "before all" hook, which makes mocha skip the entire run, so one
+# absent directory costs every test in the suite rather than a single file.
+#
+#   /home/pi/logs      util/audit.js (Trace.log), util/accountingAudit.js (Accounting.log)
+#   /home/pi/.forever  net2/logger.js getTestTransport (test.log), built whenever NODE_ENV=test
+#
+# /home/pi is created with sudo above, so hand it to the runner user before adding to it.
+sudo chown "$(id -un)" /home/pi
+mkdir -p /home/pi/logs
+mkdir -p /home/pi/.forever
 
 sudo apt-get install -y redis ipset

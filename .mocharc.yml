@@ -1,0 +1,16 @@
+# test/test_netbot.js registers a `before` hook at root scope - outside any describe() -
+# so mocha treats it as a root hook that guards the whole run, not just that file. Its
+# first step is fireRouter.waitTillReady(), an unbounded 1-second poll that only returns
+# once firerouter answers on 127.0.0.1:8837. Nothing serves that port outside a real box,
+# so in CI the hook can never complete and dies on the mocha timeout. A failed root hook
+# aborts everything, so this single file takes all ~100 specs down with it: the run
+# reports "0 passing, 1 failing".
+#
+# `ignore` is the right lever because it stops the file being loaded at all, so the root
+# hook is never registered. --grep / --fgrep cannot help: root hooks are not subject to
+# the test-name filter, and mocha loads every spec file before applying one anyway.
+#
+# Drop this entry once the hook is moved inside a describe() - which limits a failure to
+# this file - or the wait is bounded so it cannot hang.
+ignore:
+  - 'test/test_netbot.js'

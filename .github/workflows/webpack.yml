@@ -23,6 +23,11 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
+    env:
+      # How far line coverage may fall below the latest master baseline, in
+      # percentage points, before the build is failed.
+      COVERAGE_TOLERANCE: "5"
+
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -61,12 +66,140 @@ jobs:
       - run: $(yarn global bin)/webpack-cli -c .webpack/config_api.js
       - run: $(yarn global bin)/webpack-cli -c .webpack/config_mon.js
       - run: bash .webpack/prep-env.sh
-      - run: npm run coverage | tee coverage/summary.txt
+
+      # Test failures do not gate the build - the coverage ratchet below does. Many suites
+      # need state only a real box has (redis populated by FireMain, the firerouter API on
+      # 8837, local services on 8841/9964), so a failure here usually means "not a box"
+      # rather than "this change broke something". The counts are still reported in the job
+      # summary so the number cannot quietly drift.
+      #
+      # `shell: bash` is what enables pipefail, so the step's outcome still reflects mocha
+      # rather than tee's. continue-on-error is what stops that outcome failing the job -
+      # without the former, `steps.tests.outcome` would always read success and the summary
+      # would claim the suite passed.
+      #
+      # test_netbot.js is excluded HERE rather than in a .mocharc so that `npm test` on a
+      # real box still runs it. It registers a `before` hook at root scope - outside any
+      # describe - which mocha treats as guarding the whole run, and that hook awaits
+      # fireRouter.waitTillReady(), an unbounded 1s poll that only returns once firerouter
+      # answers on 127.0.0.1:8837. Nothing serves that port here, so the hook cannot finish
+      # and dies on the mocha timeout; a failed root hook aborts everything, so this one
+      # file otherwise costs all ~100 specs ("0 passing, 1 failing").
+      #
+      # `--` is required: without it npm swallows the flag and silently turns it into a
+      # spec argument, which would run ONLY that file - the exact opposite of the intent.
+      #
+      # Drop the flag once the hook is moved inside a describe() or the wait is bounded.
+      - name: Run tests with coverage
+        id: tests
+        shell: bash
+        continue-on-error: true
+        run: npm run coverage -- --ignore test/test_netbot.js 2>&1 | tee coverage/run.log
+
       - name: Archive code coverage results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage-report
           path: ./coverage/
-      - run: echo "TEST_COVERAGE=$(grep Lines coverage/summary.txt | awk -F " " '{print $3}')" >> $GITHUB_ENV
-      - run: echo coverage $TEST_COVERAGE
-      - run: bash .webpack/post-check.sh $TEST_COVERAGE 10
+
+      # Baseline is whatever the most recent push to master published. The exact key
+      # never hits on a PR (it carries the PR's sha), so the prefix restore-key is what
+      # resolves, and it returns the most recently created matching entry.
+      - name: Restore coverage baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: .coverage-baseline
+          key: coverage-baseline-master-${{ github.sha }}
+          restore-keys: |
+            coverage-baseline-master-
+
+      # Read from coverage-summary.json (json-summary reporter, already enabled in
+      # .nycrc.json) rather than grepping the text summary: the old grep ran over the
+      # whole teed run output, so any test title containing "Lines" won the match.
+      - name: Read coverage numbers
+        id: cov
+        run: |
+          pct=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+          for m in statements branches functions; do
+            echo "$m=$(jq -r ".total.${m}.pct" coverage/coverage-summary.json)" >> "$GITHUB_OUTPUT"
+          done
+          # Counts come from mocha's own tail lines. `tail -1` guards against a test title
+          # that happens to contain "N passing" - the real summary is always last.
+          for m in passing failing pending; do
+            n=$(grep -oE "[0-9]+ $m" coverage/run.log | tail -1 | grep -oE "^[0-9]+" || true)
+            echo "$m=${n:-0}" >> "$GITHUB_OUTPUT"
+          done
+
+          baseline=""
+          if [ -f .coverage-baseline/pct.txt ]; then
+            baseline=$(cat .coverage-baseline/pct.txt)
+          fi
+          echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+          if [ -n "$baseline" ]; then
+            # bc renders values between -1 and 1 without a leading zero ("-.3").
+            echo "delta=$(printf '%+.2f' "$(echo "$pct - $baseline" | bc -l)")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Coverage summary
+        env:
+          PCT: ${{ steps.cov.outputs.pct }}
+          STATEMENTS: ${{ steps.cov.outputs.statements }}
+          BRANCHES: ${{ steps.cov.outputs.branches }}
+          FUNCTIONS: ${{ steps.cov.outputs.functions }}
+          BASELINE: ${{ steps.cov.outputs.baseline }}
+          DELTA: ${{ steps.cov.outputs.delta }}
+          PASSING: ${{ steps.cov.outputs.passing }}
+          FAILING: ${{ steps.cov.outputs.failing }}
+          PENDING: ${{ steps.cov.outputs.pending }}
+        run: |
+          {
+            echo "## Test coverage"
+            echo
+            echo "| Metric | Coverage |"
+            echo "| --- | --- |"
+            echo "| **Lines** | **${PCT}%** |"
+            echo "| Statements | ${STATEMENTS}% |"
+            echo "| Branches | ${BRANCHES}% |"
+            echo "| Functions | ${FUNCTIONS}% |"
+            echo
+            echo "### Tests"
+            echo
+            echo "${PASSING} passing &nbsp;|&nbsp; ${FAILING} failing &nbsp;|&nbsp; ${PENDING} pending"
+            echo
+            if [ "${FAILING:-0}" != "0" ]; then
+              echo "> Test failures do not fail this build. Most need state only a real box has."
+              echo "> The coverage ratchet below is the gate. Full output is in the \`code-coverage-report\` artifact."
+              echo
+            fi
+            if [ -n "$BASELINE" ]; then
+              echo "Baseline (latest master): **${BASELINE}%** — change: **${DELTA}** points"
+              echo
+              echo "Allowed drop: ${COVERAGE_TOLERANCE} points."
+            else
+              echo "No baseline was available for comparison, so the drop check was skipped."
+              echo "The next push to master publishes one."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check coverage against baseline
+        env:
+          PCT: ${{ steps.cov.outputs.pct }}
+          BASELINE: ${{ steps.cov.outputs.baseline }}
+        run: bash .webpack/post-check.sh "$PCT" "$BASELINE" "$COVERAGE_TOLERANCE"
+
+      - name: Stage new baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          PCT: ${{ steps.cov.outputs.pct }}
+        run: |
+          mkdir -p .coverage-baseline
+          echo "$PCT" > .coverage-baseline/pct.txt
+
+      - name: Publish coverage baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/cache/save@v4
+        with:
+          path: .coverage-baseline
+          key: coverage-baseline-master-${{ github.sha }}

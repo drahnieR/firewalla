@@ -92,7 +92,7 @@ const { delay, isSameOrSubDomain, batchKeyExists } = require('../util/util.js');
 const validator = require('validator');
 const iptool = require('ip');
 const util = require('util');
-const exec = require('child-process-promise').exec;
+const { exec, execFile } = require('child-process-promise');
 const LRU = require('lru-cache');
 
 const DNSTool = require('../net2/DNSTool.js');
@@ -1729,7 +1729,7 @@ class PolicyManager2 {
     // for now, targets is only used for multiple category block/app time limit/app disturb
     let { pid, scope, target, targets, action = "block", tag, remotePort, localPort, protocol, direction, upnp, trafficDirection, rateLimit,
       priority, qdisc, transferredBytes, transferredPackets, avgPacketBytes, wanUUID, owanUUID, origDst, origDport, snatIP, routeType, guids,
-      parentRgId, targetRgId, ipttl, resolver, flowIsolation, dscpClass, increaseLatency, dropPacketRate } = policy;
+      parentRgId, targetRgId, ipttl, resolver, ipOnly, flowIsolation, dscpClass, increaseLatency, dropPacketRate } = policy;
     const qosRef = { pid, subKey: policy.qosSubKey };
 
     if (action === "app_block")
@@ -1879,7 +1879,7 @@ class PolicyManager2 {
             const scheduling = policy.isSchedulingPolicy();
             if (action != "block" || policy.dnsmasq_only) { // dnsmasq_only + block indicates if DNS block should be applied on internet block
               // empty string matches all domains
-              await dnsmasq.addPolicyFilterEntry([""], { pid, scope, intfs, tags, guids, action, parentRgId, seq, scheduling, resolver, wanUUID, routeType }).catch(() => { });
+              await dnsmasq.addPolicyFilterEntry([""], { pid, scope, intfs, tags, guids, action, parentRgId, seq, scheduling, resolver, ipOnly, wanUUID, routeType }).catch(() => { });
               dnsmasq.scheduleRestartDNSService();
             }
           }
@@ -1908,7 +1908,7 @@ class PolicyManager2 {
           if (direction !== "inbound" && (action === "allow" || !localPort && !remotePort)) { // always implement allow rule in dnsmasq, but implement block rule only in iptables
             const scheduling = policy.isSchedulingPolicy();
             const exactMatch = policy.domainExactMatch;
-            const flag = await dnsmasq.addPolicyFilterEntry([target], { pid, scope, intfs, tags, guids, action, parentRgId, seq, scheduling, exactMatch, resolver, wanUUID, routeType }).catch(() => { });
+            const flag = await dnsmasq.addPolicyFilterEntry([target], { pid, scope, intfs, tags, guids, action, parentRgId, seq, scheduling, exactMatch, resolver, ipOnly, wanUUID, routeType }).catch(() => { });
             if (flag !== "skip_restart") {
               dnsmasq.scheduleRestartDNSService();
             }
@@ -3063,7 +3063,7 @@ class PolicyManager2 {
     try {
       let cmdResult = await exec("sudo iptables -w -S | grep -E 'FW_FIREWALL'");
       let iptableFW = cmdResult.stdout.toString().trim(); // iptables content
-      cmdResult = await exec(`sudo ipset -S`);
+      cmdResult = await execFile("sudo", ["ipset", "-S"]);
       let cmdResultContent = cmdResult.stdout.toString().trim().split('\n');
       for (const line of cmdResultContent) {
         const splitCurrent = line.split(" ");

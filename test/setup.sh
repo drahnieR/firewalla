@@ -3,6 +3,7 @@
 FIREWALLA_HOME=${FIREWALLA_HOME:-$HOME/firewalla}
 TEST_MODULES=/data/.node_modules.test/node_modules
 
+
 # already pointed at the test tree, so treat the environment as set up and do not reinstall
 if [[ -L "$FIREWALLA_HOME/node_modules" && "$(readlink "$FIREWALLA_HOME/node_modules")" == "$TEST_MODULES" ]]; then
   echo "node_modules already points at $TEST_MODULES, skipping setup"

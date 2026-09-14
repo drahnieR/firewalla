@@ -23,6 +23,13 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
+    # Declaring this block drops every permission that is not listed, so contents:read has
+    # to be spelled out or the checkout loses access. pull-requests:write is what lets the
+    # coverage comment be posted and later edited.
+    permissions:
+      contents: read
+      pull-requests: write
+
     env:
       # How far line coverage may fall below the latest master baseline, in
       # percentage points, before the build is failed.
@@ -153,6 +160,10 @@ jobs:
           PASSING: ${{ steps.cov.outputs.passing }}
           FAILING: ${{ steps.cov.outputs.failing }}
           PENDING: ${{ steps.cov.outputs.pending }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Written to a file rather than straight into the step summary, because the sticky
+        # PR comment below posts the same body and reads it from this path. A job summary
+        # only ever renders on the run page, never on the pull request.
         run: |
           {
             echo "## Test coverage"
@@ -181,7 +192,23 @@ jobs:
               echo "No baseline was available for comparison, so the drop check was skipped."
               echo "The next push to master publishes one."
             fi
-          } >> "$GITHUB_STEP_SUMMARY"
+            echo
+            echo "[Full run](${RUN_URL})"
+          } > coverage/summary.md
+          cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Puts the same table on the pull request itself. `header` is what makes it sticky:
+      # the action tags the comment with a hidden marker and edits that one comment on every
+      # later push, instead of stacking a new comment per run.
+      #
+      # Skipped for pull requests from a fork, where GITHUB_TOKEN is read-only and the post
+      # would fail the job on every external contribution.
+      - name: Comment coverage on the PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          path: coverage/summary.md
 
       - name: Check coverage against baseline
         env:
